@@ -1,8 +1,38 @@
-import type { ClusterStats, CountryStat, ProxyNode, ProxyType } from "./types";
+import type { AppSettings, ClusterStats, CountryStat, ProxyNode, ProxyType, SpeedFloor } from "./types";
 
 const BASE = "https://console.nextproxy.site";
 
 export const DEFAULT_API_KEY = "nex_live_e05617cdb93c2534";
+
+export const PROXY_PRESET: Pick<
+  AppSettings,
+  | "defaultProxyType"
+  | "preferLiveOnly"
+  | "autoRotateDead"
+  | "httpsFallback"
+  | "maxLatencyMs"
+  | "minSpeed"
+  | "preferredCountry"
+  | "probeTimeoutMs"
+  | "autoAssignProxy"
+  | "syncGeoToProxy"
+  | "proxyConfigVersion"
+> = {
+  defaultProxyType: "https",
+  preferLiveOnly: true,
+  autoRotateDead: true,
+  httpsFallback: true,
+  maxLatencyMs: 300,
+  minSpeed: "good",
+  preferredCountry: "ALL",
+  probeTimeoutMs: 2200,
+  autoAssignProxy: true,
+  syncGeoToProxy: true,
+  proxyConfigVersion: 2,
+};
+
+const COMMON_PORTS = new Set([80, 443, 8080, 8443, 3128, 3129, 8888, 8000, 1080, 1081]);
+const SPEED_RANK: Record<string, number> = { fast: 3, good: 2, normal: 1 };
 
 function asPort(value: unknown) {
   const n = typeof value === "number" ? value : Number(value);
@@ -41,6 +71,58 @@ async function getJson(url: string, apiKey: string) {
   return res.json();
 }
 
+export function proxyScore(p: ProxyNode) {
+  const speed = SPEED_RANK[p.speedTier.toLowerCase()] ?? 1;
+  const lat = p.latency > 0 ? p.latency : 480;
+  const portBonus = COMMON_PORTS.has(p.port) ? 55 : 0;
+  const typeBonus = p.type === "https" ? 25 : p.type === "socks5" ? 8 : 0;
+  const anon = /elite|anonymous/i.test(p.anonymity) ? 12 : 0;
+  return speed * 110 + portBonus + typeBonus + anon - lat;
+}
+
+export function filterAndRank(
+  list: ProxyNode[],
+  opts?: { maxLatencyMs?: number; minSpeed?: SpeedFloor },
+): ProxyNode[] {
+  const floor = opts?.minSpeed === "fast" ? 3 : opts?.minSpeed === "good" ? 2 : 0;
+  const maxLat = opts?.maxLatencyMs && opts.maxLatencyMs > 0 ? opts.maxLatencyMs : Number.POSITIVE_INFINITY;
+  return list
+    .filter((p) => {
+      const s = SPEED_RANK[p.speedTier.toLowerCase()] ?? 1;
+      if (s < floor) return false;
+      if (p.latency > 0 && p.latency > maxLat) return false;
+      return Boolean(p.ip && p.port);
+    })
+    .sort((a, b) => proxyScore(b) - proxyScore(a));
+}
+
+export function livePickData(
+  settings: AppSettings,
+  extra?: { type?: ProxyType | "all"; country?: string; count?: number },
+) {
+  const country =
+    extra?.country && extra.country !== "ALL"
+      ? extra.country
+      : settings.preferredCountry && settings.preferredCountry !== "ALL"
+        ? settings.preferredCountry
+        : undefined;
+  return {
+    apiKey: settings.apiKey,
+    type: extra?.type ?? settings.defaultProxyType,
+    country,
+    count: extra?.count ?? 1,
+    maxLatencyMs: settings.maxLatencyMs ?? 300,
+    minSpeed: settings.minSpeed ?? "good",
+    httpsFallback: settings.httpsFallback !== false,
+    timeoutMs: settings.probeTimeoutMs ?? 2200,
+  };
+}
+
+export function withoutProbe<T extends ProxyNode & { probe?: unknown }>(node: T): ProxyNode {
+  const { probe: _probe, ...rest } = node;
+  return rest;
+}
+
 export async function fetchRandomProxy(apiKey: string): Promise<ProxyNode> {
   const data = await getJson(`${BASE}/api/random`, apiKey);
   if (!data?.proxy) throw new Error("Không nhận được proxy");
@@ -63,7 +145,7 @@ export async function fetchProxyList(opts: {
 }> {
   const params = new URLSearchParams({
     format: "json",
-    limit: String(opts.limit ?? 40),
+    limit: String(opts.limit ?? 80),
     key: opts.apiKey,
   });
   if (opts.type && opts.type !== "all") params.set("type", opts.type);

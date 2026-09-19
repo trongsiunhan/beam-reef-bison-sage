@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,14 +13,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { generateFingerprint } from "@/lib/fingerprint";
-import { fetchProxyList } from "@/lib/proxy-client";
+import { fetchProxyList, filterAndRank, livePickData, withoutProbe } from "@/lib/proxy-client";
 import { pickLiveProxiesFn } from "@/lib/proxy-check.functions";
 import { useOrbitStore } from "@/lib/store";
 import type { ProxyNode, ProxyType } from "@/lib/types";
 
 function stripProbe(node: ProxyNode & { probe?: unknown }): ProxyNode {
-  const { probe: _probe, ...rest } = node as ProxyNode & { probe?: unknown };
-  return rest;
+  return withoutProbe(node);
 }
 
 export function QuickCreateDialog({
@@ -37,8 +36,14 @@ export function QuickCreateDialog({
   const [prefix, setPrefix] = useState("Orbit");
   const [groupId, setGroupId] = useState("g_default");
   const [type, setType] = useState<ProxyType>(settings.defaultProxyType);
-  const [country, setCountry] = useState("ALL");
+  const [country, setCountry] = useState(settings.preferredCountry || "ALL");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setType(settings.defaultProxyType);
+    setCountry(settings.preferredCountry || "ALL");
+  }, [open, settings.defaultProxyType, settings.preferredCountry]);
 
   const run = async () => {
     const n = Math.min(20, Math.max(1, count));
@@ -47,12 +52,11 @@ export function QuickCreateDialog({
     try {
       const [livePack, list] = await Promise.all([
         pickLiveProxiesFn({
-          data: {
-            apiKey: settings.apiKey,
+          data: livePickData(settings, {
             type,
             country: country === "ALL" ? undefined : country,
             count: Math.min(n, 8),
-          },
+          }),
         }).catch(() => ({ live: [] as Array<ProxyNode & { probe?: unknown }>, tried: 0 })),
         fetchProxyList({
           apiKey: settings.apiKey,
@@ -62,9 +66,20 @@ export function QuickCreateDialog({
         }),
       ]);
       const liveNodes = livePack.live.map(stripProbe);
+      const rankedFallback = filterAndRank(list.proxies, {
+        maxLatencyMs: settings.maxLatencyMs,
+        minSpeed: settings.minSpeed,
+      }).filter((p) => !liveNodes.some((n) => n.ip === p.ip && n.port === p.port));
+      const assigned: Array<ProxyNode | null> = [...liveNodes];
+      if (!settings.preferLiveOnly) {
+        for (const node of rankedFallback) {
+          if (assigned.length >= n) break;
+          assigned.push(node);
+        }
+      }
       let liveUsed = 0;
       for (let i = 0; i < n; i++) {
-        const proxy = liveNodes[i] ?? list.proxies[i] ?? null;
+        const proxy = assigned[i] ?? null;
         if (liveNodes[i]) liveUsed += 1;
         const idx = String(i + 1).padStart(2, "0");
         createProfile({
@@ -77,9 +92,13 @@ export function QuickCreateDialog({
         });
       }
       toast.success(
-        liveUsed
-          ? `Đã tạo ${n} hồ sơ · ${liveUsed} node sống, phần còn lại gán từ cụm`
-          : `Đã tạo ${n} hồ sơ. Chưa dò được node sống từ máy chủ — cửa sổ vẫn mở trực tiếp.`,
+        liveUsed === n
+          ? `Đã tạo ${n} hồ sơ · ${n} node sống`
+          : liveUsed
+            ? settings.preferLiveOnly
+              ? `Đã tạo ${n} hồ sơ · ${liveUsed} node sống, còn lại để trống`
+              : `Đã tạo ${n} hồ sơ · ${liveUsed} node sống, phần còn lại xếp từ cụm`
+            : `Đã tạo ${n} hồ sơ. Chưa dò được node sống — cửa sổ mở trực tiếp.`,
       );
       onOpenChange(false);
     } catch (err) {
@@ -140,8 +159,8 @@ export function QuickCreateDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="https">HTTPS — ổn định hơn</SelectItem>
                   <SelectItem value="socks5">SOCKS5</SelectItem>
-                  <SelectItem value="https">HTTPS</SelectItem>
                   <SelectItem value="socks4">SOCKS4</SelectItem>
                 </SelectContent>
               </Select>

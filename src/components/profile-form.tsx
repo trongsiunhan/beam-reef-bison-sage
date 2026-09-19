@@ -16,7 +16,8 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { generateFingerprint } from "@/lib/fingerprint";
-import { fetchRandomProxy } from "@/lib/proxy-client";
+import { livePickData, withoutProbe } from "@/lib/proxy-client";
+import { pickLiveProxiesFn } from "@/lib/proxy-check.functions";
 import { useOrbitStore } from "@/lib/store";
 import type { EngineName, Fingerprint, OsName, Profile, ProxyNode, WebrtcMode } from "@/lib/types";
 import { uid } from "@/lib/utils";
@@ -102,7 +103,15 @@ export function ProfileFormDialog({
   const grabProxy = async () => {
     setBusy(true);
     try {
-      const proxy = await fetchRandomProxy(settings.apiKey);
+      const found = await pickLiveProxiesFn({
+        data: livePickData(settings, { count: 1 }),
+      });
+      const live = found.live[0];
+      if (!live) {
+        toast.error("Không dò được node sống. Nới bộ lọc trong Cài đặt.");
+        return;
+      }
+      const proxy = withoutProbe(live);
       setDraft((d) => ({
         ...d,
         proxy,
@@ -112,7 +121,7 @@ export function ProfileFormDialog({
           engine: d.fingerprint.engine,
         }),
       }));
-      toast.success(`Đã lấy ${proxy.ip}:${proxy.port} (${proxy.country})`);
+      toast.success(`Live ${proxy.ip}:${proxy.port} (${proxy.country}) · ${live.probe.ms} ms`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Không lấy được proxy");
     } finally {
@@ -140,7 +149,11 @@ export function ProfileFormDialog({
       if (!proxy && settings.autoAssignProxy) {
         setBusy(true);
         try {
-          proxy = await fetchRandomProxy(settings.apiKey);
+          const found = await pickLiveProxiesFn({
+            data: livePickData(settings, { count: 1 }),
+          });
+          if (found.live[0]) proxy = withoutProbe(found.live[0]);
+          else toast.message("Tạo hồ sơ không proxy — chưa dò được node sống");
         } catch {
           toast.message("Tạo hồ sơ không proxy — NextProxy tạm không trả node");
         } finally {
@@ -235,7 +248,7 @@ export function ProfileFormDialog({
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-elevated p-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium">NextProxy live</p>
-                <p className="text-xs text-muted">Lấy một node ngẫu nhiên từ cụm US & EU Anycast.</p>
+                <p className="text-xs text-muted">Lấy node đã dò sống, xếp Good+ / thấp trễ trước.</p>
               </div>
               <Button variant="secondary" onClick={grabProxy} disabled={busy}>
                 {busy ? "Đang lấy…" : "Lấy proxy"}

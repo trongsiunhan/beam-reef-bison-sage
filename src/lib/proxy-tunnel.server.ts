@@ -1,5 +1,5 @@
 import { ProxyAgent, Socks5ProxyAgent, fetch as ufetch } from "undici";
-import type { ProbeResult, ProxyNode, ProxyType } from "./types";
+import type { ProbeResult, ProxyNode, ProxyType, SpeedFloor } from "./types";
 
 const IP_CHECK_URLS = [
   "https://api.ipify.org?format=json",
@@ -138,17 +138,20 @@ export async function fetchDirect(opts: {
   }
 }
 
-export async function probeProxy(node: {
-  ip: string;
-  port: number;
-  type: string;
-}): Promise<ProbeResult> {
+export async function probeProxy(
+  node: {
+    ip: string;
+    port: number;
+    type: string;
+  },
+  timeoutMs = 2200,
+): Promise<ProbeResult> {
   const res = await fetchViaProxy({
     ip: node.ip,
     port: node.port,
     type: node.type,
     url: IP_CHECK_URLS[0],
-    timeoutMs: 2500,
+    timeoutMs,
     headers: { Accept: "application/json" },
   });
   if (res.ok && res.body.length) {
@@ -175,33 +178,81 @@ export async function pickLiveProxies(opts: {
   country?: string;
   count: number;
   budgetMs?: number;
+  maxLatencyMs?: number;
+  minSpeed?: SpeedFloor;
+  httpsFallback?: boolean;
+  timeoutMs?: number;
 }): Promise<{ live: Array<ProxyNode & { probe: ProbeResult }>; tried: number }> {
-  const { fetchProxyList } = await import("./proxy-client");
-  const list = await fetchProxyList({
-    apiKey: opts.apiKey,
-    type: opts.type && opts.type !== "all" ? opts.type : undefined,
-    country: opts.country && opts.country !== "ALL" ? opts.country : undefined,
-    limit: 40,
-  });
-  const budget = opts.budgetMs ?? 7000;
+  const { fetchProxyList, filterAndRank, proxyScore } = await import("./proxy-client");
+  const timeoutMs = opts.timeoutMs ?? 2200;
+  const budget = opts.budgetMs ?? Math.max(7000, timeoutMs * 3);
+  const want = Math.max(1, opts.count);
+  const country = opts.country && opts.country !== "ALL" ? opts.country : undefined;
+  const primaryType = opts.type && opts.type !== "all" ? opts.type : undefined;
+  const httpsFallback = opts.httpsFallback !== false && primaryType !== "https";
+
+  const pull = async (
+    type: ProxyType | "all" | undefined,
+    ctry: string | undefined,
+    rank?: { maxLatencyMs?: number; minSpeed?: SpeedFloor },
+  ) => {
+    const list = await fetchProxyList({
+      apiKey: opts.apiKey,
+      type: type && type !== "all" ? type : undefined,
+      country: ctry,
+      limit: 80,
+    });
+    return filterAndRank(list.proxies, {
+      maxLatencyMs: rank?.maxLatencyMs ?? opts.maxLatencyMs,
+      minSpeed: rank?.minSpeed ?? opts.minSpeed,
+    });
+  };
+
+  const seen = new Set<string>();
+  const ranked: ProxyNode[] = [];
+  const add = (nodes: ProxyNode[]) => {
+    for (const node of nodes) {
+      const key = `${node.ip}:${node.port}`;
+      if (!node.ip || !node.port || seen.has(key)) continue;
+      seen.add(key);
+      ranked.push(node);
+    }
+  };
+
+  add(await pull(opts.type, country));
+  if (httpsFallback) add(await pull("https", country));
+  if (ranked.length < 12) {
+    add(await pull(httpsFallback || !primaryType ? "https" : opts.type, country, { minSpeed: "any" }));
+  }
+  if (ranked.length < 12 && country) {
+    add(
+      await pull(httpsFallback || !primaryType ? "https" : opts.type, undefined, {
+        minSpeed: "any",
+        maxLatencyMs: 0,
+      }),
+    );
+  }
+  ranked.sort((a, b) => proxyScore(b) - proxyScore(a));
+
   const deadline = Date.now() + budget;
   const live: Array<ProxyNode & { probe: ProbeResult }> = [];
-  const queue = [...list.proxies];
+  const queue = ranked.slice();
   let tried = 0;
-  const concurrency = 6;
+  const concurrency = 8;
 
   const work = async () => {
-    while (live.length < opts.count && Date.now() < deadline) {
+    while (live.length < want && Date.now() < deadline) {
       const node = queue.shift();
       if (!node) return;
       tried += 1;
-      const probe = await probeProxy(node);
+      const probe = await probeProxy(node, timeoutMs);
       if (probe.ok) live.push({ ...node, probe });
     }
   };
 
-  await Promise.all(Array.from({ length: concurrency }, () => work()));
-  return { live: live.slice(0, opts.count), tried };
+  await Promise.all(Array.from({ length: Math.min(concurrency, queue.length || 1) }, () => work()));
+  live.sort((a, b) => a.probe.ms - b.probe.ms);
+  return { live: live.slice(0, want), tried };
 }
 
 export function parseTitle(html: string) {

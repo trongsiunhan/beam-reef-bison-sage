@@ -77,10 +77,10 @@ function asCookies(raw: z.infer<typeof SessionInput>["cookies"]): CookieItem[] |
 }
 
 export const checkProxyFn = createServerFn({ method: "POST" })
-  .validator(ProxyInput)
+  .validator(ProxyInput.extend({ timeoutMs: z.number().int().min(800).max(8000).optional() }))
   .handler(async ({ data }): Promise<ProbeResult> => {
     const { probeProxy } = await import("./proxy-tunnel.server");
-    return probeProxy({ ip: data.ip, port: data.port, type: data.type });
+    return probeProxy({ ip: data.ip, port: data.port, type: data.type }, data.timeoutMs);
   });
 
 export const probeUrlFn = createServerFn({ method: "POST" })
@@ -152,6 +152,10 @@ export const pickLiveProxiesFn = createServerFn({ method: "POST" })
       type: z.enum(["https", "socks4", "socks5", "all"]).optional(),
       country: z.string().optional(),
       count: z.number().int().min(1).max(10),
+      maxLatencyMs: z.number().optional(),
+      minSpeed: z.enum(["any", "good", "fast"]).optional(),
+      httpsFallback: z.boolean().optional(),
+      timeoutMs: z.number().int().min(800).max(8000).optional(),
     }),
   )
   .handler(async ({ data }) => {
@@ -161,6 +165,9 @@ export const pickLiveProxiesFn = createServerFn({ method: "POST" })
       type: data.type,
       country: data.country,
       count: data.count,
-      budgetMs: 7000,
+      maxLatencyMs: data.maxLatencyMs,
+      minSpeed: data.minSpeed,
+      httpsFallback: data.httpsFallback,
+      timeoutMs: data.timeoutMs,
     });
   });

@@ -18,6 +18,7 @@ import {
   probeUrlFn,
 } from "@/lib/proxy-check.functions";
 import { stopOrbitProfile } from "@/lib/session-actions";
+import { livePickData, withoutProbe } from "@/lib/proxy-client";
 import { useOrbitStore } from "@/lib/store";
 import type { BrowseFrame, Profile } from "@/lib/types";
 import { cn, hostPort } from "@/lib/utils";
@@ -111,7 +112,7 @@ export function BrowserSession({ profile }: { profile: Profile }) {
     setUrl(href);
     setBusy(true);
     try {
-      const res = await probeUrlFn({
+      let res = await probeUrlFn({
         data: {
           profileId: profile.id,
           url: href,
@@ -120,6 +121,35 @@ export function BrowserSession({ profile }: { profile: Profile }) {
           proxy: profile.proxy,
         },
       });
+      if (res.via === "direct" && profile.proxy && settings.autoRotateDead) {
+        const found = await pickLiveProxiesFn({
+          data: livePickData(settings, {
+            type: settings.defaultProxyType,
+            country: profile.proxy.country,
+            count: 1,
+          }),
+        });
+        const live = found.live[0];
+        if (live) {
+          const node = withoutProbe(live);
+          assignProxy(profile.id, node);
+          updateProfile(profile.id, {
+            proxyHealth: "live",
+            exitIp: live.probe.exitIp,
+            lastCheckMs: live.probe.ms,
+          });
+          res = await probeUrlFn({
+            data: {
+              profileId: profile.id,
+              url: href,
+              fingerprint: fpPayload(profile),
+              cookies: profile.cookies,
+              proxy: node,
+            },
+          });
+          toast.success(`Đã xoay sang ${hostPort(node.ip, node.port)}`);
+        }
+      }
       applyFrame(res, href);
       if (!res.ok && res.error) toast.error(res.error);
       else if (res.via === "direct" && profile.proxy && !warnedDirect.current) {
@@ -173,12 +203,11 @@ export function BrowserSession({ profile }: { profile: Profile }) {
     setBusy(true);
     try {
       const found = await pickLiveProxiesFn({
-        data: {
-          apiKey: settings.apiKey,
-          type: profile.proxy?.type ?? settings.defaultProxyType,
+        data: livePickData(settings, {
+          type: settings.defaultProxyType,
           country: profile.proxy?.country,
           count: 1,
-        },
+        }),
       });
       const next = found.live[0];
       if (!next) {

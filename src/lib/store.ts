@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { applyGeoToFingerprint, DEFAULT_GROUPS, generateFingerprint } from "./fingerprint";
-import { DEFAULT_API_KEY } from "./proxy-client";
+import { PROXY_PRESET, DEFAULT_API_KEY } from "./proxy-client";
 import type { AppSettings, Group, Profile, ProxyNode } from "./types";
 import { uid } from "./utils";
 
@@ -24,6 +24,7 @@ type OrbitState = {
   stopProfile: (id: string) => void;
   stopAll: () => void;
   setSettings: (patch: Partial<AppSettings>) => void;
+  applyProxyPreset: () => void;
   setActiveSession: (id: string | null) => void;
   pushHistory: (id: string, url: string, title: string) => void;
 };
@@ -60,10 +61,8 @@ export const useOrbitStore = create<OrbitState>()(
       groups: DEFAULT_GROUPS,
       settings: {
         apiKey: DEFAULT_API_KEY,
-        defaultProxyType: "socks5",
-        autoAssignProxy: true,
         defaultStartUrl: "https://api.ipify.org",
-        syncGeoToProxy: true,
+        ...PROXY_PRESET,
       },
       selectedIds: [],
       activeSessionId: null,
@@ -137,6 +136,8 @@ export const useOrbitStore = create<OrbitState>()(
           activeSessionId: null,
         })),
       setSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
+      applyProxyPreset: () =>
+        set((s) => ({ settings: { ...s.settings, ...PROXY_PRESET } })),
       setActiveSession: (id) => set({ activeSessionId: id }),
       pushHistory: (id, url, title) =>
         set((s) => ({
@@ -161,6 +162,21 @@ export const useOrbitStore = create<OrbitState>()(
         groups: s.groups,
         settings: s.settings,
       }),
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<OrbitState>;
+        const incoming: Partial<AppSettings> = p.settings ?? {};
+        const migrating = (incoming.proxyConfigVersion ?? 0) < 2;
+        return {
+          ...current,
+          ...p,
+          settings: {
+            ...current.settings,
+            ...incoming,
+            ...(migrating ? PROXY_PRESET : {}),
+            apiKey: incoming.apiKey || current.settings.apiKey,
+          },
+        };
+      },
     },
   ),
 );

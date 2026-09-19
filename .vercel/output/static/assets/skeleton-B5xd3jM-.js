@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-Cltr0gcK.js";import{m as t}from"./button-CmkxCyJF.js";var n=e();function r({className:e,...r}){return(0,n.jsx)(`div`,{className:t(`animate-pulse rounded-sm bg-elevated`,e),...r})}export{r as t};

@@ -89,7 +89,7 @@ var HEADERS = { TSS_SHELL: "X-TSS_SHELL" };
 * the dev styles URL for route-scoped CSS collection.
 */
 async function getStartManifest(matchedRoutes) {
-	const { tsrStartManifest } = await import("../_tanstack-start-manifest_v-DEI8_Da_.mjs");
+	const { tsrStartManifest } = await import("../_tanstack-start-manifest_v-BtFTgzmT.mjs");
 	const startManifest = tsrStartManifest();
 	let routes = startManifest.routes;
 	routes[rootRouteId];
@@ -111,35 +111,35 @@ async function getStartManifest(matchedRoutes) {
 var manifest = {
 	"0c931efe5e10ce58a01522f2ea9c5368d1555d5deb48a1f5ce9ec187cbc13549": {
 		functionName: "browseCheckIpFn_createServerFn_handler",
-		importer: () => import("./proxy-check.functions-BdV37iuV.mjs")
+		importer: () => import("./proxy-check.functions-v4YH2c_y.mjs")
 	},
 	"3051a87b5c35859027778f4bbbc946a01e0156c0e61b68dad73a539c9aad8cb8": {
 		functionName: "browseTypeFn_createServerFn_handler",
-		importer: () => import("./proxy-check.functions-BdV37iuV.mjs")
+		importer: () => import("./proxy-check.functions-v4YH2c_y.mjs")
 	},
 	"48776ec98a3f5f25f186509a55892db80af94381ae3992c81ebfca25c170a466": {
 		functionName: "browseScrollFn_createServerFn_handler",
-		importer: () => import("./proxy-check.functions-BdV37iuV.mjs")
+		importer: () => import("./proxy-check.functions-v4YH2c_y.mjs")
 	},
 	"6c5df79f99d3073797733b11f7556710911f1ec277a54c770ed73c03e808157a": {
 		functionName: "checkProxyFn_createServerFn_handler",
-		importer: () => import("./proxy-check.functions-BdV37iuV.mjs")
+		importer: () => import("./proxy-check.functions-v4YH2c_y.mjs")
 	},
 	"6db96a05b968317a66c0eef7de6f8da57c8e04bb38d07d6e16cfe3d0350a5efa": {
 		functionName: "browseClickFn_createServerFn_handler",
-		importer: () => import("./proxy-check.functions-BdV37iuV.mjs")
+		importer: () => import("./proxy-check.functions-v4YH2c_y.mjs")
 	},
 	"a1315a8ac1ae3743a9af0d8272aa01185f81c71b64138ca828537d7d396aa0d6": {
 		functionName: "probeUrlFn_createServerFn_handler",
-		importer: () => import("./proxy-check.functions-BdV37iuV.mjs")
+		importer: () => import("./proxy-check.functions-v4YH2c_y.mjs")
 	},
 	"e4e439640e8e2b8ba0fdacbe5f1c82429a6bb70789d68628539a9066798036b7": {
 		functionName: "closeSessionFn_createServerFn_handler",
-		importer: () => import("./proxy-check.functions-BdV37iuV.mjs")
+		importer: () => import("./proxy-check.functions-v4YH2c_y.mjs")
 	},
 	"ef5d275e416919a950c076c8aea0451bbb3d14b105cf5f8578f2565f42ceef59": {
 		functionName: "pickLiveProxiesFn_createServerFn_handler",
-		importer: () => import("./proxy-check.functions-BdV37iuV.mjs")
+		importer: () => import("./proxy-check.functions-v4YH2c_y.mjs")
 	}
 };
 async function getServerFnById(id, access) {
@@ -1409,7 +1409,7 @@ var getBaseManifest = getProdBaseManifest;
 var createEarlyHintsForRequest = createEarlyHintsCollector;
 async function loadEntries() {
 	const [routerEntry, startEntry, pluginAdapters] = await Promise.all([
-		import("./router-B--Rj75x.mjs").then((n) => n.t),
+		import("./router-f65h8p9n.mjs").then((n) => n.t),
 		import("./start-5Z2QO8AU.mjs"),
 		import("./empty-plugin-adapters-D9UWiqvJ.mjs")
 	]);

@@ -32,8 +32,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { fetchRandomProxy } from "@/lib/proxy-client";
-import { checkProxyFn } from "@/lib/proxy-check.functions";
+import { livePickData, withoutProbe } from "@/lib/proxy-client";
+import { checkProxyFn, pickLiveProxiesFn } from "@/lib/proxy-check.functions";
 import { stopOrbitProfile } from "@/lib/session-actions";
 import { useOrbitStore } from "@/lib/store";
 import type { Profile } from "@/lib/types";
@@ -97,7 +97,12 @@ export function ProfileTable({
     updateProfile(p.id, { proxyHealth: "checking" });
     try {
       const res = await checkProxyFn({
-        data: { ip: p.proxy.ip, port: p.proxy.port, type: p.proxy.type },
+        data: {
+          ip: p.proxy.ip,
+          port: p.proxy.port,
+          type: p.proxy.type,
+          timeoutMs: settings.probeTimeoutMs,
+        },
       });
       updateProfile(p.id, {
         proxyHealth: res.ok ? "live" : "dead",
@@ -116,19 +121,33 @@ export function ProfileTable({
   };
 
   const assignRandom = async (ids: string[]) => {
-    const toastId = toast.loading("Đang gán proxy NextProxy…");
-    let ok = 0;
-    for (const id of ids) {
-      try {
-        const proxy = await fetchRandomProxy(settings.apiKey);
-        assignProxy(id, proxy);
+    const toastId = toast.loading("Đang dò node sống NextProxy…");
+    try {
+      const found = await pickLiveProxiesFn({
+        data: livePickData(settings, { count: Math.min(10, Math.max(1, ids.length)) }),
+      });
+      let ok = 0;
+      ids.forEach((id, i) => {
+        const live = found.live[i];
+        if (!live) return;
+        assignProxy(id, withoutProbe(live));
+        updateProfile(id, {
+          proxyHealth: "live",
+          exitIp: live.probe.exitIp,
+          lastCheckMs: live.probe.ms,
+        });
         ok += 1;
-      } catch {
-        /* skip */
-      }
+      });
+      toast.success(
+        ok
+          ? `Đã gán ${ok}/${ids.length} node sống`
+          : "Không dò được node sống. Nới bộ lọc trong Cài đặt.",
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Không gán được proxy");
+    } finally {
+      toast.dismiss(toastId);
     }
-    toast.dismiss(toastId);
-    toast.success(`Đã gán ${ok}/${ids.length} proxy`);
   };
 
   const duplicate = (p: Profile) => {

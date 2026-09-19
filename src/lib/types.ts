@@ -91,12 +91,22 @@ export type Group = {
   name: string;
 };
 
+export type SpeedFloor = "any" | "good" | "fast";
+
 export type AppSettings = {
   apiKey: string;
   defaultProxyType: ProxyType;
   autoAssignProxy: boolean;
   defaultStartUrl: string;
   syncGeoToProxy: boolean;
+  preferLiveOnly: boolean;
+  autoRotateDead: boolean;
+  httpsFallback: boolean;
+  maxLatencyMs: number;
+  minSpeed: SpeedFloor;
+  preferredCountry: string;
+  probeTimeoutMs: number;
+  proxyConfigVersion: number;
 };
 
 export type ClusterStats = {

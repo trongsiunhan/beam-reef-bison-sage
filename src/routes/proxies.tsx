@@ -10,8 +10,7 @@ function ProxiesPage() {
         <p className="text-xs font-medium tracking-wide text-accent uppercase">Nguồn dữ liệu</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">Cụm proxy NextProxy</h1>
         <p className="mt-1 max-w-xl text-sm text-muted">
-          Node live HTTPS / SOCKS từ NextProxy. Check IP đi qua tunnel thật (SOCKS5 CONNECT),
-          không chỉ bắt tay TCP.
+          Node xếp Fast/Good, độ trễ thấp, cổng phổ biến trước. Dò sống rồi gán — HTTPS mặc định, SOCKS tự fallback.
         </p>
       </header>
       <ProxyPool />
