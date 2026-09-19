@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Orbit",
+      "hasCanvas": false,
+      "bodyTextLen": 366,
+      "bodyTextHash": "47cf7d58be8f33e3a786261c9e1285eeac9cf06a7bed2ad858f08254174cd64f",
+      "bodyTextPrefix": "Orbit Multi-profile Hồ sơ Proxy Đang chạy Cài đặt Hồ sơ 0 Phiên ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Orbit",
+      "hasCanvas": false,
+      "bodyTextLen": 275,
+      "bodyTextHash": "37969d67d133cf53bf2f935375035bdeae052e2a80d2303f7520471d48037ce0",
+      "bodyTextPrefix": "Orbit Multi-profile BẢNG ĐIỀU KHIỂN Hồ sơ trình duyệt Nhiều cửa ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}
